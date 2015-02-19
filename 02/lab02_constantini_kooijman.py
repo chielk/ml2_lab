@@ -126,7 +126,7 @@ class Variable(Node):
             other.receive_msg(self, self.observed_state)
             self.pending.discard(other)
             return
-        nbs = filter(lambda nb: not nb == other, self.neighbours)
+        nbs = [nb for nb in self.neighbours if not nb == other]
         if len(nbs) == 0:
             msg = np.array([1] * self.num_states)
         else:
@@ -144,7 +144,7 @@ class Variable(Node):
             self.pending.discard(other)
             return
         msg = 0
-        nbs = filter(lambda nb: not nb == other, self.neighbours)
+        nbs = [nb for nb in self.neighbours if not nb == other]
         if len(nbs) == 0:
             #leaf node
             msg = np.array([0]*self.num_states)
@@ -189,7 +189,7 @@ class Factor(Node):
         """
         Factor -> Variable message for sum-product.
         """
-        nbs = filter(lambda nb: not nb == other, self.neighbours)
+        nbs = [nb for nb in self.neighbours if not nb == other]
         if len(nbs) == 0:
             msg = self.f
         else:
@@ -197,7 +197,8 @@ class Factor(Node):
             #msg = numpy.matrix(self.f) * numpy.matrix(vectors).T
             mm = reduce(np.multiply, np.ix_(*vectors))
             other_i = self.neighbours.index(other)
-            f_axes = filter(lambda i: not i == other_i, range(len(self.neighbours)))
+            f_axes = [i for i in range(len(self.neighbours))
+                      if not i == other_i]
             msg = np.tensordot(self.f, mm, axes=(f_axes, range(mm.ndim)))
         other.receive_msg(self, msg)
         self.pending.discard(other)
@@ -206,7 +207,7 @@ class Factor(Node):
         """
         Factor -> Variable message for max-sum.
         """
-        nbs = filter(lambda nb: not nb == other, self.neighbours)
+        nbs = [nb for nb in self.neighbours if not nb == other]
         if len(nbs) == 0:
             msg = np.log(self.f)
         else:
@@ -218,15 +219,17 @@ class Factor(Node):
                 del dim_copy[i]
                 dim_copy.append(1)
                 t = np.tile(self.in_msgs[nb], dim_copy)
-                t = np.rollaxis(t,0,i)
+                t = np.rollaxis(t, 0, i)
                 mm += t
             other_i = self.neighbours.index(other)
-            f_axes = tuple(filter(lambda i: not i == other_i,range(len(self.neighbours))))
+            f_axes = [i for i in range(len(self.neighbours))
+                      if not i == other_i]
             msg = np.amax(np.log(self.f) + mm, axis=f_axes)
         other.receive_msg(self, msg)
         self.pending.discard(other)
 
 
+# 1.1
 def instantiate_network():
     VARIABLES = ['Influenza', 'Smokes', 'SoreThroat', 'Fever',
                  'Bronchitis', 'Coughing', 'Wheezing']
@@ -327,8 +330,8 @@ def sum_product(node_list, max_sum=False):
     """
     # Forward
     for i, node in enumerate(node_list):
-        for neighbour in filter(lambda n: n not in node_list[:i],
-                                node.neighbours):
+        for neighbour in (n for n in node.neighbours if not n in
+                          node_list[:i]):
             if max_sum:
                 node.send_ms_msg(neighbour)
             else:
@@ -342,8 +345,8 @@ def sum_product(node_list, max_sum=False):
     # Back
     reverse_nodes = list(reversed(node_list))
     for i, node in enumerate(reverse_nodes):
-        for neighbour in filter(lambda n: n not in reverse_nodes[:i],
-                                node.neighbours):
+        for neighbour in (n for n in node.neighbours if not n in
+                          reverse_nodes[:i]):
             if max_sum:
                 node.send_ms_msg(neighbour)
             else:
