@@ -116,7 +116,8 @@ class Variable(Node):
         if not Z:
             Z = sum(prob)
         marginal = prob/Z
-        return marginal, Z
+        return {"marginal": marginal, "Z": Z}
+        #return marginal, Z
 
     def send_sp_msg(self, other):
         """
@@ -222,9 +223,9 @@ class Factor(Node):
                 t = np.rollaxis(t, 0, i)
                 mm += t
             other_i = self.neighbours.index(other)
-            f_axes = [i for i in range(len(self.neighbours))
-                      if not i == other_i]
-            msg = np.amax(np.log(self.f) + mm, axis=f_axes)
+            f_axes = (i for i in range(len(self.neighbours))
+                      if not i == other_i)
+            msg = np.amax(np.log(self.f) + mm, axis=tuple(f_axes))
         other.receive_msg(self, msg)
         self.pending.discard(other)
 
@@ -353,4 +354,12 @@ def sum_product(node_list, max_sum=False):
                 node.send_sp_msg(neighbour)
 
 
-print sum_product(nodes)
+def best_value(variable):
+    s = np.sum(variable.in_msgs.values(), axis=0)
+    return np.argmax(s)
+
+sum_product(nodes, max_sum=True)
+
+print 'MAP state of the network:'
+for var in v_.values():
+    print var.name + ':', not best_value(var)
