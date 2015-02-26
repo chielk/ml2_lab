@@ -64,7 +64,7 @@ class Variable(Node):
                         and the allowable states are 0, 1.
         """
         self.num_states = num_states
-        self.o = False
+        self.latent = True
 
         # Call the base-class constructor
         super(Variable, self).__init__(name)
@@ -78,7 +78,7 @@ class Variable(Node):
         # Observed state is represented as a 1-of-N variable
         # Could be 0.0 for sum-product, but log(0.0) = -inf so a tiny value is
         # preferable for max-sum
-        self.o = True
+        self.latent = False
         self.observed_state[:] = 0.000001
         self.observed_state[observed_state] = 1.0
 
@@ -89,7 +89,7 @@ class Variable(Node):
         # No state is preferred, so set all entries of observed_state to 1.0
         # Using this representation we need not differentiate between observed
         # and latent variables when sending messages.
-        self.o = False
+        self.latent = True
         self.observed_state[:] = 1.0
 
     def reset(self):
@@ -110,26 +110,24 @@ class Variable(Node):
         Z=None was passed).
         """
         prob = 1
-        for fac in self.neighbours:
-            msg = self.in_msgs[fac]
-            prob *= msg
+        for factor in self.neighbours:
+            prob *= self.in_msgs[factor]
         if not Z:
             Z = sum(prob)
         marginal = prob/Z
-        return {"marginal": marginal, "Z": Z}
-        #return marginal, Z
+        return marginal, Z
 
     def send_sp_msg(self, other):
         """
         Variable -> Factor message for sum-product
         """
-        if self.o:
+        if not self.latent:
             other.receive_msg(self, self.observed_state)
             self.pending.discard(other)
             return
         nbs = [nb for nb in self.neighbours if not nb == other]
         if len(nbs) == 0:
-            msg = np.array([1] * self.num_states)
+            msg = np.ones(self.num_states)
         else:
             vectors = [self.in_msgs[nb] for nb in nbs]
             msg = np.multiply.reduce(vectors)
@@ -140,15 +138,14 @@ class Variable(Node):
         """
         Variable -> Factor message for max-sum
         """
-        if self.o:
+        if not self.latent:
             other.receive_msg(self, self.observed_state)
             self.pending.discard(other)
             return
         msg = 0
         nbs = [nb for nb in self.neighbours if not nb == other]
-        if len(nbs) == 0:
-            #leaf node
-            msg = np.array([0]*self.num_states)
+        if len(nbs) == 0:  # leaf node
+            msg = np.zeros(self.num_states)
         else:
             for f in nbs:
                 msg += self.in_msgs[f]
@@ -173,14 +170,14 @@ class Factor(Node):
         # Call the base-class constructor
         super(Factor, self).__init__(name)
 
-        assert len(neighbours) == f.ndim, ('Factor function f should accept as'
-                ' many arguments as this Factor node has neighbours')
+        m = ('Factor function f should accept as many arguments as this '
+              'Factor node has neighbours')
+        assert len(neighbours) == f.ndim, m
 
         for nb_ind in range(len(neighbours)):
             nb = neighbours[nb_ind]
-            assert f.shape[nb_ind] == nb.num_states, ('The range of the factor'
-                    ' function f is invalid for input %i %s' %
-                    (nb_ind, nb.name))
+            m = 'The range of the factor function f is invalid for input %i %s'
+            assert f.shape[nb_ind] == nb.num_states, m % (nb_ind, nb.name)
             self.add_neighbour(nb)
             nb.add_neighbour(self)
 
@@ -195,7 +192,6 @@ class Factor(Node):
             msg = self.f
         else:
             vectors = [self.in_msgs[nb] for nb in nbs]
-            #msg = numpy.matrix(self.f) * numpy.matrix(vectors).T
             mm = reduce(np.multiply, np.ix_(*vectors))
             other_i = self.neighbours.index(other)
             f_axes = [i for i in range(len(self.neighbours))
@@ -237,38 +233,38 @@ def instantiate_network():
     v_ = {name: Variable(name, 2) for name in VARIABLES}
 
     f_ = {}
-    #p(Influenza)=0.05
+    # p(Influenza)=0.05
     f_['f_I'] = np.array([0.05, 0.95])
 
-    #p(Smokes)=0.2
+    # p(Smokes)=0.2
     f_['f_S'] = np.array([0.2, 0.8])
 
-    #p(SoreThroat=1|Influenza=1)=0.3
-    #p(SoreThroat=1|Influenza=0)=0.001
+    # p(SoreThroat=1|Influenza=1)=0.3
+    # p(SoreThroat=1|Influenza=0)=0.001
     f_['f_ISt'] = np.array([[0.3, 0.7],
                            [0.001, 0.999]])
 
-    #p(Bronchitis=1|Influenza=1,Smokes=1)=0.99
-    #p(Bronchitis=1|Influenza=1,Smokes=0)=0.9
-    #p(Bronchitis=1|Influenza=0,Smokes=1)=0.7
-    #p(Bronchitis=1|Influenza=0,Smokes=0)=0.0001
+    # p(Bronchitis=1|Influenza=1,Smokes=1)=0.99
+    # p(Bronchitis=1|Influenza=1,Smokes=0)=0.9
+    # p(Bronchitis=1|Influenza=0,Smokes=1)=0.7
+    # p(Bronchitis=1|Influenza=0,Smokes=0)=0.0001
     f_['f_ISB'] = np.array([[[0.99, 0.9],
                             [0.7, 0.001]],
                            [[0.01, 0.1],
                             [0.3, 0.999]]])
 
-    #p(Fever=1|Influenza=1)=0.9
-    #p(Fever=1|Influenza=0)=0.05
+    # p(Fever=1|Influenza=1)=0.9
+    # p(Fever=1|Influenza=0)=0.05
     f_['f_IF'] = np.array([[0.9, 0.1],
                           [0.05, 0.95]])
 
-    #p(Wheezing=1|Bronchitis=1)=0.6
-    #p(Wheezing=1|Bronchitis=0)=0.001
+    # p(Wheezing=1|Bronchitis=1)=0.6
+    # p(Wheezing=1|Bronchitis=0)=0.001
     f_['f_BW'] = np.array([[0.6, 0.4],
                           [0.001, 0.999]])
 
-    #p(Coughing=1|Bronchitis=1)=0.8
-    #p(Coughing=1|Bronchitis=0)=0.07
+    # p(Coughing=1|Bronchitis=1)=0.8
+    # p(Coughing=1|Bronchitis=0)=0.07
     f_['f_BC'] = np.array([[0.8, 0.2],
                           [0.07, 0.93]])
 
