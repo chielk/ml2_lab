@@ -171,7 +171,7 @@ class Factor(Node):
         super(Factor, self).__init__(name)
 
         m = ('Factor function f should accept as many arguments as this '
-              'Factor node has neighbours')
+             'Factor node has neighbours')
         assert len(neighbours) == f.ndim, m
 
         for nb_ind in range(len(neighbours)):
@@ -350,21 +350,23 @@ def sum_product(node_list, max_sum=False):
                 node.send_sp_msg(neighbour)
 
 
+# Helper functions
 def best_value(variable):
     s = np.sum(variable.in_msgs.values(), axis=0)
     return np.argmax(s)
 
-sum_product(nodes, max_sum=False)
+
+def print_values(v):
+    for var in v.values():
+        print var.name + ':', not best_value(var)
+
 
 print 'MAP state of the network (sum-product):'
-for var in v_.values():
-    print var.name + ':', not best_value(var)
+sum_product(nodes, max_sum=False)
+print_values(v_)
 
-
-sum_product(nodes, max_sum=True)
 
 print
 print 'MAP state of the network (max-sum):'
-for var in v_.values():
-    print var.name + ':', not best_value(var)
-
+sum_product(nodes, max_sum=True)
+print_values(v_)
