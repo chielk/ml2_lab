@@ -354,8 +354,17 @@ def best_value(variable):
     s = np.sum(variable.in_msgs.values(), axis=0)
     return np.argmax(s)
 
-sum_product(nodes, max_sum=True)
+sum_product(nodes, max_sum=False)
 
-print 'MAP state of the network:'
+print 'MAP state of the network (sum-product):'
 for var in v_.values():
     print var.name + ':', not best_value(var)
+
+
+sum_product(nodes, max_sum=True)
+
+print
+print 'MAP state of the network (max-sum):'
+for var in v_.values():
+    print var.name + ':', not best_value(var)
+
